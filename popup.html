@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quick Bookmark Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Quick Bookmark Manager</h1>
+      <div class="search-container">
+        <input type="text" id="search-input" placeholder="Search bookmarks...">
+      </div>
+    </header>
+    
+    <div class="bookmarks-section">
+      <div class="folder-path" id="folder-path"></div>
+      <div class="bookmarks-container" id="bookmarks-container"></div>
+    </div>
+    
+    <div class="actions">
+      <button id="add-bookmark">Add Bookmark</button>
+      <button id="add-folder">Add Folder</button>
+    </div>
+  </div>
+  
+  <div id="add-bookmark-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Add Bookmark</h2>
+      <input type="text" id="bookmark-title" placeholder="Title">
+      <input type="text" id="bookmark-url" placeholder="URL">
+      <button id="save-bookmark">Save</button>
+    </div>
+  </div>
+  
+  <div id="add-folder-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Add Folder</h2>
+      <input type="text" id="folder-name" placeholder="Folder Name">
+      <button id="save-folder">Save</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
