@@ -102,18 +102,39 @@ function loadBookmarks(folderId) {
     // If we're not at the root, add a "Go back" option
     if (folderPath.length > 1) {
       const backItem = document.createElement('div');
-      backItem.className = 'folder-item';
+      backItem.className = 'bookmark-item';
       backItem.innerHTML = `
         <div class="item-title">
-          <span>⬅️ Back to ${folderPath[folderPath.length - 2].title}</span>
+          <span>${folderPath[folderPath.length - 2].title}</span>
+        </div>
+        <div class="item-actions">
+          <button class="back-btn" title="Go back">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+            Back
+          </button>
         </div>
       `;
-      backItem.addEventListener('click', () => {
+      
+      const backBtn = backItem.querySelector('.back-btn');
+      backBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const parentId = folderPath[folderPath.length - 2].id;
         folderPath.pop();
         currentFolder = parentId;
         loadBookmarks(parentId);
       });
+      
+      backItem.addEventListener('click', (e) => {
+        if (!e.target.closest('.item-actions')) {
+          const parentId = folderPath[folderPath.length - 2].id;
+          folderPath.pop();
+          currentFolder = parentId;
+          loadBookmarks(parentId);
+        }
+      });
+      
       bookmarksContainer.appendChild(backItem);
     }
     
@@ -143,14 +164,23 @@ function addBookmarkElement(bookmark) {
   bookmarkItem.dataset.id = bookmark.id;
   bookmarkItem.dataset.type = 'bookmark';
   
+  // Get the favicon URL from the bookmark URL
+  const url = new URL(bookmark.url);
+  const faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=16`;
+  
   bookmarkItem.innerHTML = `
     <div class="item-title">
-      <span class="bookmark-icon">🔖</span>
+      <img class="favicon" src="${faviconUrl}" alt="" loading="lazy">
+      <span class="bookmark-icon" style="display: none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+        </svg>
+      </span>
       <span>${bookmark.title || bookmark.url}</span>
     </div>
     <div class="item-actions">
-      <button class="edit-btn" title="Edit">✏️</button>
-      <button class="delete-btn" title="Delete">🗑️</button>
+      <button class="edit-btn" title="Edit">Edit</button>
+      <button class="delete-btn" title="Delete">Delete</button>
     </div>
   `;
   
@@ -196,6 +226,19 @@ function addBookmarkElement(bookmark) {
       });
     }
   });
+
+  // Handle favicon error
+  const favicon = bookmarkItem.querySelector('.favicon');
+  favicon.onerror = () => {
+    favicon.style.display = 'none';
+    bookmarkItem.querySelector('.bookmark-icon').style.display = 'flex';
+  };
+
+  // Handle favicon load
+  favicon.onload = () => {
+    favicon.style.display = 'inline-block';
+    bookmarkItem.querySelector('.bookmark-icon').style.display = 'none';
+  };
   
   bookmarksContainer.appendChild(bookmarkItem);
 }
@@ -210,12 +253,16 @@ function addFolderElement(folder) {
   
   folderItem.innerHTML = `
     <div class="item-title">
-      <span class="folder-icon">📁</span>
+      <span class="folder-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+        </svg>
+      </span>
       <span>${folder.title}</span>
     </div>
     <div class="item-actions">
-      <button class="edit-btn" title="Edit">✏️</button>
-      <button class="delete-btn" title="Delete">🗑️</button>
+      <button class="edit-btn" title="Edit">Edit</button>
+      <button class="delete-btn" title="Delete">Delete</button>
     </div>
   `;
   
@@ -287,16 +334,35 @@ function searchBookmarks(query) {
     
     // Add a back button to return to the current folder
     const backItem = document.createElement('div');
-    backItem.className = 'folder-item';
+    backItem.className = 'bookmark-item';
     backItem.innerHTML = `
       <div class="item-title">
-        <span>⬅️ Back to folder view</span>
+        <span>Current folder</span>
+      </div>
+      <div class="item-actions">
+        <button class="back-btn" title="Return to folder view">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+          Back to folder
+        </button>
       </div>
     `;
-    backItem.addEventListener('click', () => {
+
+    const backBtn = backItem.querySelector('.back-btn');
+    backBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       searchInput.value = '';
       loadBookmarks(currentFolder);
     });
+    
+    backItem.addEventListener('click', (e) => {
+      if (!e.target.closest('.item-actions')) {
+        searchInput.value = '';
+        loadBookmarks(currentFolder);
+      }
+    });
+    
     bookmarksContainer.appendChild(backItem);
     
     // Display search results
@@ -311,70 +377,124 @@ function searchBookmarks(query) {
 // Set up drag and drop functionality
 function setupDragAndDrop() {
   const draggableItems = document.querySelectorAll('.bookmark-item, .folder-item');
-  const dropTargets = document.querySelectorAll('.folder-item');
-  
+  const dropTargets = document.querySelectorAll('.bookmark-item, .folder-item, .bookmarks-container');
+  let draggedElement = null;
+  let dropTarget = null;
+  let dropPosition = 'before'; // 'before', 'after', or 'inside'
+
   draggableItems.forEach(item => {
+    // Don't allow dragging the back button
+    if (item.querySelector('.back-btn')) {
+      item.draggable = false;
+      return;
+    }
+
     item.addEventListener('dragstart', (e) => {
-      draggedItem = {
-        id: item.dataset.id,
-        type: item.dataset.type
-      };
-      item.style.opacity = '0.5';
+      draggedElement = item;
+      e.dataTransfer.effectAllowed = 'move';
+      item.classList.add('dragging');
     });
-    
+
     item.addEventListener('dragend', () => {
-      item.style.opacity = '1';
-      document.querySelectorAll('.drag-over').forEach(el => {
-        el.classList.remove('drag-over');
-      });
+      draggedElement.classList.remove('dragging');
+      dropTargets.forEach(target => target.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom'));
     });
+
+    item.addEventListener('dragover', (e) => handleDragOver(e, item));
+    item.addEventListener('dragleave', handleDragLeave);
+    item.addEventListener('drop', handleDrop);
   });
-  
-  dropTargets.forEach(target => {
-    target.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      target.classList.add('drag-over');
-    });
-    
-    target.addEventListener('dragleave', () => {
-      target.classList.remove('drag-over');
-    });
-    
-    target.addEventListener('drop', (e) => {
-      e.preventDefault();
-      target.classList.remove('drag-over');
-      
-      if (draggedItem && draggedItem.id !== target.dataset.id) {
-        // Move the dragged item to this folder
-        chrome.bookmarks.move(draggedItem.id, {
-          parentId: target.dataset.id
-        }, () => {
-          loadBookmarks(currentFolder);
-        });
-      }
-    });
-  });
-  
-  // Allow dropping in the main container to move items to the current folder
+
+  // Allow dropping in the main container
   bookmarksContainer.addEventListener('dragover', (e) => {
     e.preventDefault();
-  });
-  
-  bookmarksContainer.addEventListener('drop', (e) => {
-    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
     
-    // Only process if the drop happened directly on the container (not on a folder)
-    if (e.target === bookmarksContainer) {
-      if (draggedItem) {
-        // Move the dragged item to the current folder
-        chrome.bookmarks.move(draggedItem.id, {
-          parentId: currentFolder
-        }, () => {
-          loadBookmarks(currentFolder);
-        });
-      }
+    const rect = bookmarksContainer.getBoundingClientRect();
+    const items = Array.from(bookmarksContainer.children);
+    const lastItem = items[items.length - 1];
+    
+    if (lastItem && e.clientY > lastItem.getBoundingClientRect().bottom) {
+      bookmarksContainer.classList.add('drag-over');
+      dropTarget = bookmarksContainer;
+      dropPosition = 'inside';
     }
   });
+
+  bookmarksContainer.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget?.closest('.bookmarks-container')) {
+      bookmarksContainer.classList.remove('drag-over');
+    }
+  });
+
+  bookmarksContainer.addEventListener('drop', handleDrop);
+
+  function handleDragOver(e, target) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    if (target === draggedElement) return;
+
+    const rect = target.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+
+    dropTarget = target;
+    target.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+
+    if (target.classList.contains('folder-item') && e.clientY < midY + 10 && e.clientY > midY - 10) {
+      target.classList.add('drag-over');
+      dropPosition = 'inside';
+    } else if (e.clientY < midY) {
+      target.classList.add('drag-over-top');
+      dropPosition = 'before';
+    } else {
+      target.classList.add('drag-over-bottom');
+      dropPosition = 'after';
+    }
+  }
+
+  function handleDragLeave(e) {
+    if (!e.relatedTarget?.closest('.bookmark-item, .folder-item')) {
+      e.target.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+    }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    if (!draggedElement || draggedElement === dropTarget) return;
+
+    const draggedId = draggedElement.dataset.id;
+    const draggedType = draggedElement.dataset.type;
+    
+    // Get the target folder ID and index
+    let parentId = currentFolder;
+    let index = 0;
+
+    if (dropTarget === bookmarksContainer) {
+      // Dropping at the end of the list
+      const items = Array.from(bookmarksContainer.children);
+      index = items.length;
+    } else if (dropTarget.classList.contains('folder-item') && dropPosition === 'inside') {
+      // Dropping inside a folder
+      parentId = dropTarget.dataset.id;
+    } else {
+      // Dropping before or after an item
+      const items = Array.from(bookmarksContainer.children);
+      const targetIndex = items.indexOf(dropTarget);
+      index = dropPosition === 'before' ? targetIndex : targetIndex + 1;
+    }
+
+    // Move the bookmark/folder
+    chrome.bookmarks.move(draggedId, {
+      parentId: parentId,
+      index: index
+    }, () => {
+      loadBookmarks(currentFolder);
+    });
+
+    // Clean up
+    dropTargets.forEach(target => target.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom'));
+  }
 }
 
 // Close the modals when clicking outside of them

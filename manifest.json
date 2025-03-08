@@ -3,7 +3,8 @@
     "name": "Quick Bookmark Manager",
     "version": "1.0",
     "description": "Easily manage your bookmarks without using the bookmark manager",
-    "permissions": ["bookmarks", "storage"],
+    "permissions": ["bookmarks", "storage", "tabs"],
+    "host_permissions": ["<all_urls>"],
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
